@@ -1,5 +1,5 @@
 from setuptools import setup
-from torch.utils.cpp_extension import CUDAExtension, CppExtension, BuildExtension
+from torch.utils.cpp_extension import CUDAExtension, CppExtension, SyclExtension, BuildExtension
 import torch
 import sys
 import os
@@ -80,10 +80,9 @@ def configure_mps():
 def configure_xpu():
     """Configure Intel XPU (SYCL) backend."""
     log("Compiling for XPU.")
-    os.environ['CXX'] = 'icpx'
 
-    compiler_args = {"cxx": ["-O3", "-std=c++17", "-fsycl"]}
-    link_args = ["-fsycl"]
+    compiler_args = {"sycl": ["-O3", "-std=c++17"]}
+    link_args = []
 
     try:
         device_name = torch.xpu.get_device_name(0)
@@ -93,7 +92,8 @@ def configure_xpu():
         log("Detected Intel XPU (SYCL)")
         detected_arch = "Intel XPU (SYCL)"
 
-    return CppExtension, ["ssim_sycl.cpp","ext.cpp"], "fused_ssim_xpu", compiler_args, link_args, detected_arch
+    return SyclExtension, ["ssim_sycl.sycl", "ext.cpp"], "fused_ssim_xpu", compiler_args, link_args, detected_arch
+
 
 
 # Detect backend
@@ -109,12 +109,6 @@ else:
 # Create a custom class that prints the architecture information
 class CustomBuildExtension(BuildExtension):
     def build_extensions(self):
-        # For SYCL, override compiler to use icpx
-        if 'xpu' in build_name:
-            self.compiler.compiler_so = ['icpx'] + self.compiler.compiler_so[1:]
-            self.compiler.compiler_cxx = ['icpx'] + self.compiler.compiler_cxx[1:]
-            self.compiler.linker_so = ['icpx'] + self.compiler.linker_so[1:]
-
         arch_info = f"Building with GPU architecture: {detected_arch if detected_arch else 'multiple architectures'}"
         print("\n" + "="*50)
         print(arch_info)
